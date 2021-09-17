@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Iowa Travel Alerts</title>
+  <!-- load leaflet.css library here -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+  <!--for icon support-->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.14.0/css/all.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.14.0/css/v4-shims.css">
+  <!-- for icon markers -->
+  <link rel="stylesheet" href="css/leaflet.extra-markers.min.css">
+  <!-- add custom css styles here -->
+  <style>
+    /* style the body of the page here */
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* style the div with an id of "map" here */
+    #map {
+      position: absolute;
+      width: 100%;
+      top: 0;
+      bottom: 0;
+    }
+
+    /* full size */
+    .ctl {
+      padding: 2px 10px 2px 10px;
+      background: white;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+      border-radius: 5px;
+      text-align: right;
+    }
+
+    .title {
+      font-size: 18pt;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- define a div called "map" here -->
+  <div id="map"></div>
+  <!-- load leaflet.js library here -->
+  <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+  <!-- Add d3js library here -->
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <!-- load turf.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js" integrity="sha512-Q7HOppxoH0L2M7hreVoFCtUZimR2YaY0fBewIYzkCgmNtgOOZ5IgMNYxHgfps0qrO1ef5m7L1FeHrhXlq1I9HA==" crossorigin="anonymous" referrerpolicy="no-referrer">
+  </script>
+  <!-- load Esri Leaflet from CDN -->
+  <script src="https://unpkg.com/esri-leaflet@2.5.0/dist/esri-leaflet.js" integrity="sha512-ucw7Grpc+iEQZa711gcjgMBnmd9qju1CICsRaryvX7HJklK0pGl/prxKvtHwpgm5ZHdvAil7YPxI1oWPOWK3UQ==" crossorigin=""></script>
+  <!-- for icon markers -->
+  <script src="js/leaflet.extra-markers.min.js"></script>
+  <!-- javascript here -->
+  <script>
+    // map options
+    const options = {
+      center: [42, -93], // center on Iowa
+      zoom: 8 // set initial zoom to 8
+    }
+
+    // instantiate Leaflet map
+    const map = L.map('map', options);
+
+    // use the Esri DeLorme base map
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/DeLorme_World_Base_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Copyright: &copy;2012 DeLorme',
+      minZoom: 1,
+      maxZoom: 11
+    }).addTo(map); // add the base map to the map
+
+    // Title
+    var title = L.control();
+    title.onAdd = function(map) {
+      this._div = L.DomUtil.create('div', 'ctl title');
+      this.update();
+      return this._div;
+    };
+    title.update = function(props) {
+      this._div.innerHTML = "Travel Information, Iowa";
+    };
+    title.addTo(map);
+
+    // add a scale bar
+    L.control.scale({
+      position: 'bottomleft' // position the scale bar at the bottom-left corner
+    }).addTo(map);
+
+    // Add a function to style the counties by their number of warnings
+    function getCountyColor(d) {
+      return d >= 5 ? '#08519c' :
+        d >= 4 ? '#3182bd' :
+        d >= 3 ? '#6baed6' :
+        d >= 2 ? '#bdd7e7' :
+        d >= 1 ? '#eff3ff' :
+        'rgba(0,0,0,0.0)';
+    };
+
+    // Load your data asynchronously with the d3 queue here
+    d3.queue()
+      .defer(d3.json, 'https://opendata.arcgis.com/datasets/8a1c2d500d8847d79aa47d45d44eb133_0.geojson')
+      //.defer(d3.json, 'data/Your_File.geojson') // Add more files if needed
+      .await(drawMap); // Load the layers after the map loads
+
+    // Provide instructions for drawing the map
+    function drawMap(err, counties) {
+
+      // closure layer
+      const closure = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          // If the STYLE property equals "closure"...
+          if (feature.properties.STYLE == "closure") {
+            // ...return an extra marker styled with a Font Awesome icon called 'fa fa-times'
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-times',
+                prefix: 'fa',
+                markerColor: 'red', // give the marker a color
+                iconColor: 'white' // give the icon in the marker a color
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end closure layer
+
+      // futureEvent layer
+      const futureEvent = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "future_event") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-calendar',
+                prefix: 'fa',
+                markerColor: 'blue',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end futureEvent layer
+
+      // laneClosure layer
+      const laneClosure = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "lane_closure") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-window-close-o',
+                prefix: 'fa',
+                markerColor: 'green',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end laneClosure layer
+
+      // criticalClosure layer
+      const criticalClosure = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "priority_closure") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-times-circle',
+                prefix: 'fa',
+                markerColor: 'orange',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end criticalClosure layer
+
+      // criticalInfo layer
+      const criticalInfo = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "priority_info") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-info-circle',
+                prefix: 'fa',
+                markerColor: 'yellow',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end criticalInfo layer
+
+      // restriction layer
+      const restriction = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "restriction") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-lock',
+                prefix: 'fa',
+                markerColor: 'purple',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end restriction layer
+
+      // roadwork layer
+      const roadwork = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "roadwork") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-road',
+                prefix: 'fa',
+                markerColor: 'violet',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end roadwork layer
+
+      // warning layer
+      const warning = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "warning") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-exclamation',
+                prefix: 'fa',
+                markerColor: 'cyan',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }).addTo(map); // end warning layer
+
+      // criticalWarning layer
+      const criticalWarning = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "priority_warning") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-exclamation-triangle',
+                prefix: 'fa',
+                markerColor: 'orange-dark',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end criticalWarning layer
+
+      // info layer
+      const info = L.esri.featureLayer({
+        // web feature service url
+        url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0',
+        // pointToLayer
+        pointToLayer: function(feature, latlng) {
+          if (feature.properties.STYLE == "info") {
+            return L.marker(latlng, {
+              icon: L.ExtraMarkers.icon({
+                icon: 'fa fa-info',
+                prefix: 'fa',
+                markerColor: 'green-dark',
+                iconColor: 'white'
+              })
+            });
+          };
+        }, // end pointToLayer
+        // On each marker...
+        onEachFeature: function(feature, layer) {
+          // define the layer feature properties
+          let props = layer.feature.properties;
+          // conditionally format "cause" property to disappear if null
+          if (props.cause == null) {
+            var cause = ''
+          } else {
+            var cause = props.cause
+          }
+          // bind info to the layer features using popups
+          layer.bindPopup(props.headline + " " + cause, {
+            closeButton: false
+          });
+          layer.on('mouseover', function() {
+            layer.openPopup();
+          });
+          layer.on('mouseout', function() {
+            layer.closePopup();
+          });
+        } // end onEachFeature
+      }); // end info layer
+
+      // define the Iowa Counties layer
+      const iowaCounties = L.geoJson(counties, {
+
+        // give the layer initial styles
+        style: function(feature) {
+          return {
+            color: "tan",
+            fillColor: "tan",
+            weight: 0.5,
+            opacity: 0.20,
+            fillOpacity: 0.20
+          }
+        },
+
+        // iterate through each feature
+        onEachFeature: function(feature, layer) {
+
+          // define an empty array to hold all the warning coordinates
+          var warningCoords = [];
+
+          // to find out the number of warnings per county...
+          // upon loading the warning layer...
+          warning.on('load', function() {
+
+            // clear the warningCoords array
+            warningCoords.length = 0;
+
+            // iterate through each warning
+            warning.eachFeature(function(a) {
+
+              // define an empty array to hold each set of coordinates for each warning
+              const theseCoords = [];
+
+              // access the latitude and longitude
+              const thisPoint = a._latlng;
+
+              // define each
+              const x = thisPoint.lng;
+              const y = thisPoint.lat;
+
+              // push the coordinate values to the empty theseCoords array
+              theseCoords.push(x, y);
+
+              // push that array to the empty warningCoords array
+              warningCoords.push(theseCoords);
+
+            });
+
+            // use turf and feed it the warningCoords
+            const points = turf.points(warningCoords);
+
+            // get the coordinates for each county polygon
+            const coords = layer.feature.geometry.coordinates[0][0];
+
+            // use turf and feed it the county polygon coordinates
+            const searchWithin = turf.polygon([coords]);
+
+            // use turf to create new features with the number of points within each county
+            const ptsWithin = turf.pointsWithinPolygon(points, searchWithin);
+
+            // define the total number of points in each county
+            const ptsTotal = ptsWithin.features.length;
+
+            layer.setStyle({
+              color: "tan",
+              fillColor: getCountyColor(ptsTotal),
+              weight: 0.5,
+              opacity: 0.50,
+              fillOpacity: 0.50
+            });
+
+            layer.bindTooltip("Warnings: " + ptsTotal);
+
+            //reset style on mouseover
+            layer.on('mouseover', function() {
+              layer.openTooltip();
+              layer.setStyle({
+                color: "tan",
+                fillColor: getCountyColor(ptsTotal),
+                weight: 2,
+                opacity: 0.80,
+                fillOpacity: 0.80
+              });
+            });
+            //return to initial style on mouseout
+            layer.on('mouseout', function() {
+              layer.closeTooltip();
+              layer.setStyle({
+                color: "tan",
+                fillColor: getCountyColor(ptsTotal),
+                weight: 0.5,
+                opacity: 0.50,
+                fillOpacity: 0.50
+              });
+            });
+
+          });
+
+        }
+
+      });
+
+      // define overlays for the layer control
+      var overlays = {
+        "Closures": closure,
+        "Critical Closures": criticalClosure,
+        "Critical Info": criticalInfo,
+        "Critical Warnings": criticalWarning,
+        "Future Events": futureEvent,
+        "Info": info,
+        "Lane Closures": laneClosure,
+        "Restrictions": restriction,
+        "Roadwork": roadwork,
+        "Warnings": warning,
+        "Warnings by County": iowaCounties
+      };
+
+      // assemble the layer control and add it to the map
+      L.control.layers(null, overlays, {
+        collapsed: false,
+      }).addTo(map);
+
+    };
+  </script>
+</body>
+
+</html>
