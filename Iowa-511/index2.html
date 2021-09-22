@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.14.0/css/v4-shims.css">
   <!-- for icon markers -->
   <link rel="stylesheet" href="css/leaflet.extra-markers.min.css">
+  <!-- for grouped layer control -->
+  <link rel="stylesheet" href="extra/leaflet.groupedlayercontrol.css" />
   <!-- add custom css styles here -->
   <style>
     /* style the body of the page here */
@@ -60,6 +62,8 @@
   <script src="https://unpkg.com/esri-leaflet@2.5.0/dist/esri-leaflet.js" integrity="sha512-ucw7Grpc+iEQZa711gcjgMBnmd9qju1CICsRaryvX7HJklK0pGl/prxKvtHwpgm5ZHdvAil7YPxI1oWPOWK3UQ==" crossorigin=""></script>
   <!-- for icon markers -->
   <script src="js/leaflet.extra-markers.min.js"></script>
+  <!-- for grouped layer control -->
+  <script src="extra/leaflet.groupedlayercontrol.js"></script>
   <!-- javascript here -->
   <script>
     // map options
@@ -548,14 +552,16 @@
             warning.eachFeature(function(a) {
 
               // define an empty array to hold each set of coordinates for each warning
-              const theseCoords = [];
+              var theseCoords = [];
 
               // access the latitude and longitude
-              const thisPoint = a._latlng;
+              var thisPoint = a._latlng;
 
               // define each
-              const x = thisPoint.lng;
-              const y = thisPoint.lat;
+              var x = thisPoint.lng;
+              var y = thisPoint.lat;
+
+              theseCoords.length = 0;
 
               // push the coordinate values to the empty theseCoords array
               theseCoords.push(x, y);
@@ -618,7 +624,7 @@
         }
 
       });
-
+/*
       // define overlays for the layer control
       var overlays = {
         "Closures": closure,
@@ -637,6 +643,30 @@
       // assemble the layer control and add it to the map
       L.control.layers(null, overlays, {
         collapsed: false,
+      }).addTo(map);
+*/
+      // Overlay layers are grouped
+      var groupedOverlays = {
+        "Sites": {
+          "Closures": closure,
+          "Critical Closures": criticalClosure,
+          "Critical Info": criticalInfo,
+          "Critical Warnings": criticalWarning,
+          "Future Events": futureEvent,
+          "Info": info,
+          "Lane Closures": laneClosure,
+          "Restrictions": restriction,
+          "Roadwork": roadwork,
+          "Warnings": warning
+        },
+        "By County": {
+          "Warnings by County": iowaCounties
+        }
+      };
+
+      // Use the custom grouped layer control, not "L.control.layers"
+      L.control.groupedLayers(null, groupedOverlays, {
+        collapsed: false
       }).addTo(map);
 
     };
