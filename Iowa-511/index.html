@@ -67,8 +67,8 @@
     const map = L.map('map', options);
 
     // use the Esri DeLorme base map
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/DeLorme_World_Base_Map/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Copyright: &copy;2012 DeLorme',
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012',
       minZoom: 1,
       maxZoom: 11
     }).addTo(map); // add the base map to the map
@@ -89,6 +89,47 @@
     L.control.scale({
       position: 'bottomleft' // position the scale bar at the bottom-left corner
     }).addTo(map);
+
+    // add iowa counties layer
+    const counties = L.esri.featureLayer({
+      // web feature service url
+      url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/ArcGIS/rest/services/County_View/FeatureServer/0',
+      // style the counties layer
+      style: function() {
+        return {
+          color: 'gray', // set the border color
+          weight: 1, // set the border weight
+          opacity: 0.5, // set line opacity
+          fillColor: 'white', // set the fill color
+          fillOpacity: 0.0 // set the fill opacity
+        };
+      },
+      // On hover over each county, highlight it and show the county name
+      onEachFeature: function(feature, layer) {
+        layer.on('mouseover', function() {
+          layer.setStyle({
+            weight: 3, // set the border weight
+            color: 'black', // set the border color
+            opacity: 1, // set line opacity
+            fillColor: 'white', // set the fill color
+            fillOpacity: 0.0 // set the fill opacity
+          });
+          layer.bindTooltip(feature.properties.COUNTY_NAME, {
+            sticky: true
+          }).openTooltip();
+        });
+        layer.on('mouseout', function() {
+          layer.setStyle({
+            color: 'gray', // set the border color
+            weight: 1, // set the border weight
+            opacity: 0.5, // set line opacity
+            fillColor: 'white', // set the fill color
+            fillOpacity: 0.0 // set the fill opacity
+          });
+          layer.closeTooltip();
+        });
+      }
+    }).addTo(map); // add the counties layer to the map
 
     // closure layer
     const closure = L.esri.featureLayer({
@@ -130,7 +171,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end closure layer
+    }).addTo(map); // end closure layer
 
     // futureEvent layer
     const futureEvent = L.esri.featureLayer({
@@ -170,7 +211,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end futureEvent layer
+    }).addTo(map); // end futureEvent layer
 
     // laneClosure layer
     const laneClosure = L.esri.featureLayer({
@@ -210,7 +251,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end laneClosure layer
+    }).addTo(map); // end laneClosure layer
 
     // criticalClosure layer
     const criticalClosure = L.esri.featureLayer({
@@ -250,7 +291,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end criticalClosure layer
+    }).addTo(map); // end criticalClosure layer
 
     // criticalInfo layer
     const criticalInfo = L.esri.featureLayer({
@@ -290,7 +331,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end criticalInfo layer
+    }).addTo(map); // end criticalInfo layer
 
     // restriction layer
     const restriction = L.esri.featureLayer({
@@ -330,7 +371,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end restriction layer
+    }).addTo(map); // end restriction layer
 
     // roadwork layer
     const roadwork = L.esri.featureLayer({
@@ -370,7 +411,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end roadwork layer
+    }).addTo(map); // end roadwork layer
 
     // warning layer
     const warning = L.esri.featureLayer({
@@ -410,7 +451,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end warning layer
+    }).addTo(map); // end warning layer
 
     // criticalWarning layer
     const criticalWarning = L.esri.featureLayer({
@@ -450,7 +491,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end criticalWarning layer
+    }).addTo(map); // end criticalWarning layer
 
     // info layer
     const info = L.esri.featureLayer({
@@ -490,7 +531,7 @@
           layer.closePopup();
         });
       } // end onEachFeature
-    }); // end info layer
+    }).addTo(map); // end info layer
 
     // define overlays for the layer control
     var overlays = {
